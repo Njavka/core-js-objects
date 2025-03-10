@@ -318,87 +318,145 @@ function group(array, keySelector, valueSelector) {
   }, new Map());
 }
 
-/**
- * Css selectors builder
- *
- * Each complex selector can consists of type, id, class, attribute, pseudo-class
- * and pseudo-element selectors:
- *
- *    element#id.class[attr]:pseudoClass::pseudoElement
- *              \----/\----/\----------/
- *              Can be several occurrences
- *
- * All types of selectors can be combined using the combination ' ','+','~','>' .
- *
- * The task is to design a single class, independent classes or classes hierarchy
- * and implement the functionality to build the css selectors using the provided cssSelectorBuilder.
- * Each selector should have the stringify() method to output the string representation
- * according to css specification.
- *
- * Provided cssSelectorBuilder should be used as facade only to create your own classes,
- * for example the first method of cssSelectorBuilder can be like this:
- *   element: function(value) {
- *       return new MySuperBaseElementSelector(...)...
- *   },
- *
- * The design of class(es) is totally up to you, but try to make it as simple,
- * clear and readable as possible.
- *
- * @example
- *
- *  const builder = cssSelectorBuilder;
- *
- *  builder.id('main').class('container').class('editable').stringify()
- *    => '#main.container.editable'
- *
- *  builder.element('a').attr('href$=".png"').pseudoClass('focus').stringify()
- *    => 'a[href$=".png"]:focus'
- *
- *  builder.combine(
- *      builder.element('div').id('main').class('container').class('draggable'),
- *      '+',
- *      builder.combine(
- *          builder.element('table').id('data'),
- *          '~',
- *           builder.combine(
- *               builder.element('tr').pseudoClass('nth-of-type(even)'),
- *               ' ',
- *               builder.element('td').pseudoClass('nth-of-type(even)')
- *           )
- *      )
- *  ).stringify()
- *    => 'div#main.container.draggable + table#data ~ tr:nth-of-type(even)   td:nth-of-type(even)'
- *
- *  For more examples see unit tests.
- */
+class CSSSelector {
+  constructor() {
+    this.parts = {
+      element: null,
+      id: null,
+      classes: [],
+      attributes: [],
+      pseudoClasses: [],
+      pseudoElements: [],
+    };
+    this.order = [];
+  }
+
+  checkOrder(part) {
+    const orderMap = {
+      element: 1,
+      id: 2,
+      classes: 3,
+      attributes: 4,
+      pseudoClasses: 5,
+      pseudoElements: 6,
+    };
+
+    if (
+      this.order.length > 0 &&
+      orderMap[part] < orderMap[this.order[this.order.length - 1]]
+    ) {
+      throw new Error(
+        'Selector parts should be arranged in the following order: element, id, class, attribute, pseudo-class, pseudo-element'
+      );
+    }
+
+    this.order.push(part);
+  }
+
+  element(value) {
+    if (this.parts.element) {
+      throw new Error(
+        'Element, id and pseudo-element should not occur more then one time inside the selector'
+      );
+    }
+    this.checkOrder('element');
+    this.parts.element = value;
+    return this;
+  }
+
+  id(value) {
+    if (this.parts.id) {
+      throw new Error(
+        'Element, id and pseudo-element should not occur more then one time inside the selector'
+      );
+    }
+    this.checkOrder('id');
+    this.parts.id = value;
+    return this;
+  }
+
+  class(value) {
+    this.checkOrder('classes');
+    this.parts.classes.push(value);
+    return this;
+  }
+
+  attr(value) {
+    this.checkOrder('attributes');
+    this.parts.attributes.push(value);
+    return this;
+  }
+
+  pseudoClass(value) {
+    this.checkOrder('pseudoClasses');
+    this.parts.pseudoClasses.push(value);
+    return this;
+  }
+
+  pseudoElement(value) {
+    if (this.parts.pseudoElements.length > 0) {
+      throw new Error(
+        'Element, id and pseudo-element should not occur more then one time inside the selector'
+      );
+    }
+    this.checkOrder('pseudoElements');
+    this.parts.pseudoElements.push(value);
+    return this;
+  }
+
+  stringify() {
+    const parts = [];
+
+    if (this.parts.element) {
+      parts.push(this.parts.element);
+    }
+
+    if (this.parts.id) {
+      parts.push(`#${this.parts.id}`);
+    }
+
+    parts.push(...this.parts.classes.map((className) => `.${className}`));
+    parts.push(...this.parts.attributes.map((attribute) => `[${attribute}]`));
+    parts.push(
+      ...this.parts.pseudoClasses.map((pseudoClass) => `:${pseudoClass}`)
+    );
+    parts.push(
+      ...this.parts.pseudoElements.map((pseudoElement) => `::${pseudoElement}`)
+    );
+
+    return parts.join('');
+  }
+}
 
 const cssSelectorBuilder = {
-  element(/* value */) {
-    throw new Error('Not implemented');
+  element(value) {
+    return new CSSSelector().element(value);
   },
 
-  id(/* value */) {
-    throw new Error('Not implemented');
+  id(value) {
+    return new CSSSelector().id(value);
   },
 
-  class(/* value */) {
-    throw new Error('Not implemented');
+  class(value) {
+    return new CSSSelector().class(value);
   },
 
-  attr(/* value */) {
-    throw new Error('Not implemented');
+  attr(value) {
+    return new CSSSelector().attr(value);
   },
 
-  pseudoClass(/* value */) {
-    throw new Error('Not implemented');
+  pseudoClass(value) {
+    return new CSSSelector().pseudoClass(value);
   },
 
-  pseudoElement(/* value */) {
-    throw new Error('Not implemented');
+  pseudoElement(value) {
+    return new CSSSelector().pseudoElement(value);
   },
 
-  combine(/* selector1, combinator, selector2 */) {
-    throw new Error('Not implemented');
+  combine(selector1, combinator, selector2) {
+    const combined = new CSSSelector();
+    combined.parts.element = `${selector1.stringify()} ${combinator} ${selector2.stringify()}`;
+    return combined;
   },
 };
 
